@@ -8,7 +8,7 @@ int http_conn::m_user_count = 0;
 //设置文件描述符非阻塞
 void setnonblocking(int fd){
     int old_flag = fcntl(fd, F_GETFL);
-    int new_flag = old_flag | O_NONBLOCK;
+    int new_flag = old_flag | O_NONBLOCK;//非阻塞
     fcntl(fd, F_SETFL, new_flag);
 }
 
@@ -16,10 +16,11 @@ void setnonblocking(int fd){
 void addfd(int epollfd, int fd, bool one_shot){
     epoll_event event;
     event.data.fd = fd;
-    event.events = EPOLLIN | EPOLLRDHUP;    //检测读取和挂起，用于在内核直接处理
+    event.events = EPOLLIN | EPOLLRDHUP;    //通过事件判断对方是否关闭连接
 
     if(one_shot){
-        event.events |= EPOLLONESHOT;
+        //防止两个线程同时操作同一个socket
+        event.events | EPOLLONESHOT;
     }
     epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
     //设置文件描述符非阻塞
@@ -79,7 +80,7 @@ bool http_conn::write(){
 void http_conn::process(){
     //解析HTTP请求
 
-    printf("parse request, create response");
+    printf("parse request, create response\n");
 
     //生成响应
     

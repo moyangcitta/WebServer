@@ -28,7 +28,7 @@ public:
 
     ~http_conn(){}
 
-    void process();//处理客户端的请求
+    void process();//处理客户端的请求，解析HTTP请求，返回响应信息
     void init(int sockfd, const sockaddr_in &addr); //初始化新接受的连接
     void close_conn();  //关闭连接
     bool read();    //非阻塞的读

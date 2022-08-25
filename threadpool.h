@@ -1,3 +1,4 @@
+//线程池
 #ifndef THREADPOOL_H
 #define THREADPOOL_H
 
@@ -12,10 +13,11 @@
 template<typename T>
 class threadpool{
 public:
-    threadpool(int thread_number = 0, int max_request = 10000);
+    threadpool(int thread_number = 8, int max_request = 10000);
 
     ~threadpool();
 
+    //向工作队列中添加任务
     bool append(T * request);
 
 private:
@@ -59,7 +61,8 @@ threadpool<T>::threadpool(int thread_number, int max_request) : m_thread_number(
     }
 
     //创建thread_number个线程，并将它们设置为线程脱离
-    for(int i = 0; i < thread_number; i++){
+    //让子线程自动释放资源
+    for(int i = 0; i < thread_number; ++i){
         printf("create the %dth thread\n", i);
 
         if(pthread_create(m_threads + i, NULL, worker, this) != 0){
@@ -83,6 +86,7 @@ threadpool<T>::~threadpool(){
 template<typename T>
 bool threadpool<T>::append(T * request){
     m_queuelocker.lock();
+    //防止工作队列超过最大数量
     if(m_workqueue.size() > m_max_requests){
         m_queuelocker.unlock();
         return false;
@@ -90,11 +94,14 @@ bool threadpool<T>::append(T * request){
 
     m_workqueue.push_back(request);
     m_queuelocker.unlock();
+
+    //通过信号量判断是否堵塞还是执行
     m_queuestat.post();
     return true;
 }
 
 template<typename T>
+//静态类型无法访问类中的成员变量，需要通过指针传递
 void *threadpool<T>::worker(void * arg){
     threadpool * pool = (threadpool *)arg;
     pool->run();
@@ -107,6 +114,7 @@ void threadpool<T>::run(){
         //信号量有值就不阻塞，无值就阻塞
         m_queuestat.wait();
         m_queuelocker.lock();
+        //判断工作队列是否有数据
         if(m_workqueue.empty()){
             m_queuelocker.unlock();
             continue;

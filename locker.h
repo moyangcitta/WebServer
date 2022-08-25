@@ -8,33 +8,40 @@
 //互斥锁类
 class locker{
 public:
+    //构造函数
     locker(){
+        //互斥锁初始化
         if(pthread_mutex_init(&m_mutex, NULL) != 0){
             throw std::exception();
         }
     }
 
     ~locker(){
+        //销毁互斥锁
         pthread_mutex_destroy(&m_mutex);
     }
 
+    //上锁
     bool lock(){
         return pthread_mutex_lock(&m_mutex) == 0;
     }
 
+    //解锁
     bool unlock(){
         return pthread_mutex_unlock(&m_mutex) == 0;
     }
 
+    //获取互斥量
     pthread_mutex_t * get(){
         return &m_mutex;
     }
 private:
+    //互斥锁
     pthread_mutex_t m_mutex;
 };
 
 //条件变量类
-class cond{
+class cond{ 
 public:
     cond(){
         if(pthread_cond_init(&m_cond, NULL) != 0){
@@ -50,14 +57,16 @@ public:
         return pthread_cond_wait(&m_cond, mutex) == 0;
     }
 
-    bool timewait(pthread_mutex_t * mutex, struct timespec t){
+    bool timedwait(pthread_mutex_t * mutex, struct timespec t){
         return pthread_cond_timedwait(&m_cond, mutex, &t) == 0;
     }
 
+    //唤醒线程
     bool signal(){
         return pthread_cond_signal(&m_cond) == 0;
     }
 
+    //唤醒所有线程
     bool broadcast(){
         return pthread_cond_broadcast(&m_cond) == 0;
     }
@@ -68,12 +77,14 @@ private:
 //信号量类
 class sem{
 public:
+    //消费者
     sem(){
         if(sem_init(&m_sem, 0, 0) != 0){
             throw std::exception();
         }
     }
 
+    //生产者
     sem(int num){
         if(sem_init(&m_sem, 0, num) != 0){
             throw std::exception();
