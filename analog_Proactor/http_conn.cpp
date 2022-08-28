@@ -12,7 +12,7 @@ const char* error_500_title = "Internal Error";
 const char* error_500_form = "There was an unusual problem serving the requested file.\n";
 
 // 网站的根目录
-const char* doc_root = "/home/stu/nowcoderProject/webserver/analog_Proactor/resources";
+const char* doc_root = "/home/nowcoder/webserver/resources";
 
 int setnonblocking( int fd ) {
     int old_option = fcntl( fd, F_GETFL );
@@ -79,6 +79,10 @@ void http_conn::init(int sockfd, const sockaddr_in& addr){
 
 void http_conn::init()
 {
+
+    bytes_to_send = 0;
+    bytes_have_send = 0;
+
     m_check_state = CHECK_STATE_REQUESTLINE;    // 初始状态为检查请求行
     m_linger = false;       // 默认不保持链接  Connection : keep-alive保持连接
 
@@ -91,6 +95,7 @@ void http_conn::init()
     m_checked_idx = 0;
     m_read_idx = 0;
     m_write_idx = 0;
+
     bzero(m_read_buf, READ_BUFFER_SIZE);
     bzero(m_write_buf, READ_BUFFER_SIZE);
     bzero(m_real_file, FILENAME_LEN);
@@ -321,8 +326,6 @@ void http_conn::unmap() {
 bool http_conn::write()
 {
     int temp = 0;
-    int bytes_have_send = 0;    // 已经发送的字节
-    int bytes_to_send = m_write_idx;// 将要发送的字节 （m_write_idx）写缓冲区中待发送的字节数
     
     if ( bytes_to_send == 0 ) {
         // 将要发送的字节为0，这一次响应结束。
@@ -344,21 +347,42 @@ bool http_conn::write()
             unmap();
             return false;
         }
-        bytes_to_send -= temp;
+
         bytes_have_send += temp;
-        if ( bytes_to_send <= bytes_have_send ) {
-            // 发送HTTP响应成功，根据HTTP请求中的Connection字段决定是否立即关闭连接
-            unmap();
-            if(m_linger) {
-                init();
-                modfd( m_epollfd, m_sockfd, EPOLLIN );
-                return true;
-            } else {
-                modfd( m_epollfd, m_sockfd, EPOLLIN );
-                return false;
-            } 
+        bytes_to_send -= temp;
+
+        if (bytes_have_send >= m_iv[0].iov_len)
+        {
+            m_iv[0].iov_len = 0;
+            m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
+            m_iv[1].iov_len = bytes_to_send;
         }
+        else
+        {
+            m_iv[0].iov_base = m_write_buf + bytes_have_send;
+            m_iv[0].iov_len = m_iv[0].iov_len - temp;
+        }
+
+        if (bytes_to_send <= 0)
+        {
+            // 没有数据要发送了
+            unmap();
+            modfd(m_epollfd, m_sockfd, EPOLLIN);
+
+            if (m_linger)
+            {
+                init();
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
     }
+
+    
 }
 
 // 往写缓冲中写入待发送的数据
@@ -451,6 +475,9 @@ bool http_conn::process_write(HTTP_CODE ret) {
             m_iv[ 1 ].iov_base = m_file_address;
             m_iv[ 1 ].iov_len = m_file_stat.st_size;
             m_iv_count = 2;
+
+            bytes_to_send = m_write_idx + m_file_stat.st_size;
+
             return true;
         default:
             return false;
@@ -459,6 +486,7 @@ bool http_conn::process_write(HTTP_CODE ret) {
     m_iv[ 0 ].iov_base = m_write_buf;
     m_iv[ 0 ].iov_len = m_write_idx;
     m_iv_count = 1;
+    bytes_to_send = m_write_idx;
     return true;
 }
 
