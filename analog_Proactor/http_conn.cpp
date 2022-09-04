@@ -12,8 +12,9 @@ const char* error_500_title = "Internal Error";
 const char* error_500_form = "There was an unusual problem serving the requested file.\n";
 
 // 网站的根目录
-const char* doc_root = "/home/nowcoder/webserver/resources";
+const char* doc_root = "/home/stu/nowcoderProject/webserver/analog_Proactor/resources";
 
+//返回 -EAGAIN，而不会阻塞进程
 int setnonblocking( int fd ) {
     int old_option = fcntl( fd, F_GETFL );
     int new_option = old_option | O_NONBLOCK;
@@ -22,9 +23,11 @@ int setnonblocking( int fd ) {
 }
 
 // 向epoll中添加需要监听的文件描述符
+//水平触发
 void addfd( int epollfd, int fd, bool one_shot ) {
     epoll_event event;
     event.data.fd = fd;
+    //EPOLLRDHUP：TCP连接被对方关闭，或者对方关闭了写操作
     event.events = EPOLLIN | EPOLLRDHUP;
     if(one_shot) 
     {
@@ -72,6 +75,7 @@ void http_conn::init(int sockfd, const sockaddr_in& addr){
     // 端口复用
     int reuse = 1;
     setsockopt( m_sockfd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof( reuse ) );
+    //向epollfd中添加客户端套接字
     addfd( m_epollfd, sockfd, true );
     m_user_count++;
     init();
@@ -313,7 +317,7 @@ http_conn::HTTP_CODE http_conn::do_request()
     return FILE_REQUEST;
 }
 
-// 对内存映射区执行munmap操作
+// 对内存映射区执行munmap操作，释放空间
 void http_conn::unmap() {
     if( m_file_address )
     {
